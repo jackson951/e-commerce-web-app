@@ -4,6 +4,7 @@ import { ClientErrorObserver } from "@/components/client-error-observer";
 import { Footer } from "@/components/footer";
 import { Providers } from "@/components/providers";
 import { Navbar } from "@/components/navbar";
+import { WhatsAppChat } from "@/components/whatsapp-chat";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
             <Footer />
+            <WhatsAppChat />
           </div>
         </Providers>
       </body>
