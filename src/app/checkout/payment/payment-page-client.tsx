@@ -155,17 +155,37 @@ export function CheckoutPaymentClient() {
 
   // Handle terms acceptance and proceed with payment
   async function handleTermsAccepted() {
-    setShowTermsModal(false);
+    // FIX: Add explicit null checks for TypeScript safety
+    if (!token) {
+      setError("Authentication required.");
+      setShowTermsModal(false);
+      return;
+    }
+    if (!selectedMethodId) {
+      setError("Please choose a payment method.");
+      setShowTermsModal(false);
+      return;
+    }
+    if (!session?.checkoutSessionId) {
+      setError("Invalid checkout session.");
+      setShowTermsModal(false);
+      return;
+    }
+
     setProcessing(true);
     setError(null);
     setMessage(null);
     try {
       const result = await api.payCheckoutSession(
-        token, session!.checkoutSessionId!, selectedMethodId, cvv, idempotencyKey
+        token,
+        session.checkoutSessionId, // Now TypeScript knows this is a string
+        selectedMethodId,          // Now TypeScript knows this is a string
+        cvv,
+        idempotencyKey
       );
       if (result.status === "APPROVED") {
         refreshCart();
-        const finalized = await api.finalizeCheckoutSession(token, session!.checkoutSessionId!, idempotencyKey);
+        const finalized = await api.finalizeCheckoutSession(token, session.checkoutSessionId, idempotencyKey);
         // Clear the cart after successful payment
         await clearCart();
         setMessage("Payment successful! Taking you to your order…");
@@ -173,11 +193,12 @@ export function CheckoutPaymentClient() {
       } else {
         setError(result.gatewayMessage || "Your payment was declined. Please try a different card.");
       }
-      setSession(await api.getCheckoutSession(token, session!.checkoutSessionId!));
+      setSession(await api.getCheckoutSession(token, session.checkoutSessionId));
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setProcessing(false);
+      setShowTermsModal(false);
     }
   }
 
