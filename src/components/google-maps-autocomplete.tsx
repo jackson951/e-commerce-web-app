@@ -14,16 +14,18 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 
-// Import L for icon fix
-import L from 'leaflet';
+// Import L for icon fix - only on client side
+const L = typeof window !== 'undefined' ? require('leaflet') : null;
 
-// Fix for default marker icons in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
+// Fix for default marker icons in Leaflet - only on client side
+if (typeof window !== 'undefined' && L) {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  });
+}
 
 interface GoogleMapsAutocompleteProps {
   onAddressSelect: (address: string, location: { lat: number; lng: number }) => void;
@@ -96,34 +98,50 @@ export function GoogleMapsAutocomplete({
         <label className="block text-sm font-medium text-slate-700 mb-2">
           Search and select your address
         </label>
-        <GoogleAutocomplete
-          apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-          onPlaceSelected={handlePlaceSelected}
-          options={{
-            types: ['address'],
-            componentRestrictions: { country: 'za' },
-          }}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-          defaultValue={address}
-          onChange={(e: any) => setAddress(e.target.value)}
-        />
+        {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+          <GoogleAutocomplete
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+            onPlaceSelected={handlePlaceSelected}
+            options={{
+              types: ['address'],
+              componentRestrictions: { country: 'za' },
+            }}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+            defaultValue={address}
+            onChange={(e: any) => setAddress(e.target.value)}
+          />
+        ) : (
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Enter your delivery address..."
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+          />
+        )}
       </div>
 
       {/* Map */}
       <div className="rounded-lg overflow-hidden border border-slate-200">
-        <MapContainer
-          center={[location.lat, location.lng]}
-          zoom={15}
-          style={{ height: '300px', width: '100%' }}
-          ref={mapRef}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          <Marker position={[location.lat, location.lng]} />
-          <MapClickHandler />
-        </MapContainer>
+        {typeof window !== 'undefined' ? (
+          <MapContainer
+            center={[location.lat, location.lng]}
+            zoom={15}
+            style={{ height: '300px', width: '100%' }}
+            ref={mapRef}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            <Marker position={[location.lat, location.lng]} />
+            <MapClickHandler />
+          </MapContainer>
+        ) : (
+          <div className="h-72 bg-slate-100 flex items-center justify-center text-slate-500">
+            Map loading...
+          </div>
+        )}
       </div>
 
       {/* Selected Address Display */}
