@@ -15,112 +15,34 @@ import {
   PaymentTransaction,
   Product
 } from "@/lib/types";
+import { httpClient } from "./web-api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
-const GET_CACHE_TTL_MS = 60_000;
-
+// Type definitions
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-type CacheEntry<T> = {
-  value: T;
-  expiresAt: number;
-};
+// Cache invalidation prefixes for different resource types
+const CACHE_INVALIDATION = {
+  PRODUCTS: ["/products"],
+  CATEGORIES: ["/categories", "/products"],
+  ORDERS: ["/admin/orders", "/orders"],
+  CUSTOMERS: ["/customers"],
+  PAYMENT_METHODS: ["/customers/*/payment-methods"],
+  CART: ["/customers/*/cart", "/customers/*/orders"],
+} as const;
 
-const responseCache = new Map<string, CacheEntry<unknown>>();
-const inFlightRequests = new Map<string, Promise<unknown>>();
-
-function getCacheKey(path: string, method: Method, token?: string) {
-  return `${method}:${path}:${token || ""}`;
+// API request wrapper using the new HTTP client
+async function request<T>(
+  path: string, 
+  method: Method, 
+  token?: string, 
+  body?: unknown
+): Promise<T> {
+  return httpClient.request<T>(path, method, token, body);
 }
 
-function readCachedValue<T>(key: string): T | null {
-  const entry = responseCache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    responseCache.delete(key);
-    return null;
-  }
-  return entry.value as T;
-}
-
-function writeCachedValue<T>(key: string, value: T) {
-  responseCache.set(key, {
-    value,
-    expiresAt: Date.now() + GET_CACHE_TTL_MS
-  });
-}
-
-function invalidateGetCache(prefixes: string[]) {
-  for (const key of responseCache.keys()) {
-    for (const prefix of prefixes) {
-      if (key.startsWith(`GET:${prefix}:`)) {
-        responseCache.delete(key);
-        break;
-      }
-    }
-  }
-
-  for (const key of inFlightRequests.keys()) {
-    for (const prefix of prefixes) {
-      if (key.startsWith(`GET:${prefix}:`)) {
-        inFlightRequests.delete(key);
-        break;
-      }
-    }
-  }
-}
-
-async function parseResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message || `Request failed (${res.status})`);
-  }
-
-  if (res.status === 204) return {} as T;
-
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) return {} as T;
-  const text = await res.text();
-  if (!text.trim()) return {} as T;
-  return JSON.parse(text) as T;
-}
-
-async function request<T>(path: string, method: Method, token?: string, body?: unknown): Promise<T> {
-  const cacheKey = getCacheKey(path, method, token);
-
-  if (method === "GET") {
-    const cached = readCachedValue<T>(cacheKey);
-    if (cached) return cached;
-
-    const pending = inFlightRequests.get(cacheKey);
-    if (pending) return pending as Promise<T>;
-  }
-
-  const fetchPromise = fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    cache: "no-store"
-  }).then((res) => parseResponse<T>(res));
-
-  if (method === "GET") {
-    const trackedPromise = fetchPromise
-      .then((data) => {
-        writeCachedValue(cacheKey, data);
-        return data;
-      })
-      .finally(() => {
-        inFlightRequests.delete(cacheKey);
-      });
-
-    inFlightRequests.set(cacheKey, trackedPromise as Promise<unknown>);
-    return trackedPromise;
-  }
-
-  return fetchPromise;
+// Cache invalidation wrapper
+function invalidateGetCache(prefixes: string[]): void {
+  httpClient.invalidateCache(prefixes);
 }
 
 export const api = {
