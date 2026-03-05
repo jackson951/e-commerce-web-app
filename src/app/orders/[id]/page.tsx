@@ -223,15 +223,49 @@ export default function OrderDetailPage() {
                   </span>
                 )}
               </div>
+
+              {/* Delivery Information */}
+              {order.isDelivery && (
+                <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Truck className="h-4 w-4 text-rose-500" />
+                    <span className="text-xs font-semibold text-slate-600">Delivery Information</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-xs text-slate-400">Delivery Fee</span>
+                      <p className="font-semibold text-slate-900">{formatCurrency(order.deliveryFee || 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400">Shipping Address</span>
+                      <p className="font-semibold text-slate-900">{order.shippingAddress || 'Not provided'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Tracking timeline ── */}
             {tracking && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5 flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-rose-500" />
-                  <h2 className="font-bold text-slate-900">Delivery progress</h2>
+                <div className="mb-5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-rose-500" />
+                    <h2 className="font-bold text-slate-900">Delivery progress</h2>
+                  </div>
+                  {tracking.isDelivery && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                      <Truck className="h-3 w-3 text-rose-500" />
+                      Delivery Order
+                    </span>
+                  )}
                 </div>
+                {tracking.isDelivery && tracking.shippingAddress && (
+                  <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs text-slate-400 mb-1">Shipping to</p>
+                    <p className="text-sm font-semibold text-slate-900">{tracking.shippingAddress}</p>
+                  </div>
+                )}
                 <TrackingTimeline tracking={tracking} />
               </div>
             )}

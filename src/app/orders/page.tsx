@@ -49,10 +49,18 @@ function OrderCard({ order }: { order: Order }) {
           <p className="font-extrabold text-slate-900 tracking-tight">{order.orderNumber}</p>
           <p className="mt-0.5 text-xs text-slate-400">{formatDate(order.createdAt)}</p>
         </div>
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${color}`}>
-          <Icon className="h-3.5 w-3.5" />
-          {label}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${color}`}>
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </span>
+          {order.isDelivery && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+              <Truck className="h-3 w-3 text-rose-500" />
+              Delivery
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Divider */}

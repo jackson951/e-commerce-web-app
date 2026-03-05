@@ -62,6 +62,9 @@ export type Order = {
   orderNumber: string;
   status: OrderStatus;
   totalAmount: number;
+  deliveryFee?: number;
+  isDelivery?: boolean;
+  shippingAddress?: string;
   createdAt: string;
   customerId: string;
   items: OrderItem[];
@@ -86,6 +89,9 @@ export type OrderTracking = {
   orderId: string;
   orderNumber: string;
   currentStatus: OrderStatus;
+  deliveryFee?: number;
+  isDelivery?: boolean;
+  shippingAddress?: string;
   createdAt: string;
   stages: OrderTrackingStage[];
 };
