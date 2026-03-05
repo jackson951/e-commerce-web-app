@@ -2,11 +2,10 @@
 
 import { useAuth } from "@/contexts/auth-context";
 import { getFirstValidationError, registerSchema } from "@/lib/validation";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, ShoppingBasket, Mail, RefreshCw, CheckCircle2, ShieldCheck, AlertCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, ShoppingBasket, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState, useEffect, useRef } from "react";
-import { api } from "@/lib/api";
+import { FormEvent, useState } from "react";
 import { TermsModal } from "@/components/terms-modal";
 
 // Reusable Field component
@@ -36,87 +35,6 @@ function Field({
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-rose-400 focus:bg-white focus:ring-2 focus:ring-rose-100 disabled:opacity-50 disabled:cursor-not-allowed";
 
-// OTP Input Component with auto-advance and auto-submit
-function OtpInput({
-  value,
-  onChange,
-  onComplete,
-  disabled,
-  error,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  onComplete: (val: string) => void;
-  disabled?: boolean;
-  error?: string;
-}) {
-  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
-
-  const handleChange = (index: number, val: string) => {
-    const digit = val.replace(/\D/g, "").slice(0, 1);
-    const newValue = value.split("");
-    newValue[index] = digit;
-    const joined = newValue.join("");
-    onChange(joined);
-
-    if (digit && index < 5) {
-      inputsRef.current[index + 1]?.focus();
-    }
-
-    if (joined.length === 6 && joined.split("").every((d) => d !== "")) {
-      onComplete(joined);
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !value[index] && index > 0) {
-      inputsRef.current[index - 1]?.focus();
-    }
-    if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      navigator.clipboard.readText().then((pasted) => {
-        const digits = pasted.replace(/\D/g, "").slice(0, 6);
-        onChange(digits);
-        if (digits.length === 6) {
-          onComplete(digits);
-        }
-        const lastFocused = Math.min(digits.length - 1, 5);
-        inputsRef.current[lastFocused]?.focus();
-      });
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2 justify-center">
-        {[...Array(6)].map((_, index) => (
-          <input
-            key={index}
-            ref={(el) => { inputsRef.current[index] = el; }}
-            type="text"
-            inputMode="numeric"
-            pattern="\d{1}"
-            maxLength={1}
-            value={value[index] || ""}
-            onChange={(e) => handleChange(index, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(index, e)}
-            disabled={disabled}
-            className={`w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold rounded-xl border-2 transition-all outline-none ${
-              error
-                ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                : "border-slate-200 bg-slate-50 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 focus:bg-white"
-            } text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
-            aria-label={`Digit ${index + 1}`}
-          />
-        ))}
-      </div>
-      {error && (
-        <p className="text-center text-sm text-red-500 font-medium animate-pulse">{error}</p>
-      )}
-    </div>
-  );
-}
-
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
@@ -132,19 +50,11 @@ export default function RegisterPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
   // UI state
-  const [view, setView] = useState<"form" | "otp" | "success">("form");
+  const [view, setView] = useState<"form" | "success">("form");
   const [showPassword, setShowPassword] = useState(false);
   
-  // OTP state
-  const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [otpLoading, setOtpLoading] = useState(false);
+  // Registration state
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [simulatedOtp, setSimulatedOtp] = useState<string>("");
-  const [registrationData, setRegistrationData] = useState<any>(null);
-  
-  // Registration error state
   const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   // Terms modal state
@@ -162,12 +72,6 @@ export default function RegisterPage() {
         });
       }
     };
-  }
-
-  function formatTime(seconds: number) {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
 
   // Validate and submit registration form
@@ -200,10 +104,8 @@ export default function RegisterPage() {
     setSubmitLoading(true);
     
     try {
-      // Call real OTP endpoint for registration
-      await api.forgotPassword(form.email);
-      
-      setRegistrationData({
+      // Register user directly without OTP
+      await register({
         fullName: form.fullName,
         email: form.email.trim(),
         password: form.password,
@@ -211,43 +113,7 @@ export default function RegisterPage() {
         address: form.address.trim() || undefined,
       });
       
-      // Redirect to OTP verification page
-      router.push(`/verify-otp?flow=registration&email=${encodeURIComponent(form.email)}`);
-      
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to send verification code. Please try again.";
-      setFormErrors({ email: message });
-    } finally {
-      setSubmitLoading(false);
-    }
-  }
-
-  // ✅ FIXED: Handle OTP validation AND registration in correct order
-  async function handleOtpComplete(enteredOtp: string) {
-    if (enteredOtp.length !== 6) return;
-    
-    setOtpLoading(true);
-    setOtpError(null);
-    setRegistrationError(null);
-
-    try {
-      // Step 1: Verify OTP
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      
-      if (enteredOtp !== simulatedOtp) {
-        setOtpError("Invalid code. Please check and try again.");
-        return;
-      }
-
-      // ✅ Step 2: ONLY proceed to registration AFTER OTP is verified
-      if (!registrationData) {
-        throw new Error("Registration data not found. Please start over.");
-      }
-
-      // Attempt backend registration
-      await register(registrationData);
-      
-      // ✅ Step 3: ONLY show success AFTER registration succeeds
+      // Show success view
       setView("success");
       
       // Redirect after brief animation
@@ -257,89 +123,10 @@ export default function RegisterPage() {
       }, 1500);
       
     } catch (err) {
-      // ❌ Registration failed - show error and let user retry
       const message = err instanceof Error ? err.message : "Registration failed. Please try again.";
       setRegistrationError(message);
-      setOtpError("Verification succeeded, but account creation failed. Please retry.");
-      
-      // Keep user on OTP view so they can retry
     } finally {
-      setOtpLoading(false);
-    }
-  }
-
-  // Redirect to OTP verification page
-  function handleContinueToOtp() {
-    router.push(`/verify-otp?flow=registration&email=${encodeURIComponent(form.email)}`);
-  }
-
-  async function handleResendOtp() {
-    if (countdown > 0 || otpLoading) return;
-    
-    setOtpLoading(true);
-    setOtp("");
-    setOtpError(null);
-    setRegistrationError(null);
-    
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setSimulatedOtp(newOtp);
-      setCountdown(120);
-      
-    } catch (err) {
-      setOtpError("Failed to resend code. Please try again.");
-    } finally {
-      setOtpLoading(false);
-    }
-  }
-
-  // Countdown timer
-  useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setInterval(() => {
-      setCountdown((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [countdown]);
-
-  // Clear errors when OTP changes
-  useEffect(() => {
-    if (otpError) setOtpError(null);
-    if (registrationError) setRegistrationError(null);
-  }, [otp]);
-
-  function handleBack() {
-    setView("form");
-    setOtp("");
-    setOtpError(null);
-    setRegistrationError(null);
-    setSimulatedOtp("");
-    setRegistrationData(null);
-  }
-
-  // Retry registration after error (keeps OTP verified)
-  async function handleRetryRegistration() {
-    if (!registrationData) return;
-    
-    setOtpLoading(true);
-    setRegistrationError(null);
-    setOtpError(null);
-    
-    try {
-      await register(registrationData);
-      setView("success");
-      setTimeout(() => {
-        router.push("/");
-        router.refresh();
-      }, 1500);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Registration failed. Please try again.";
-      setRegistrationError(message);
-      setOtpError("Still having trouble? Try going back and checking your details.");
-    } finally {
-      setOtpLoading(false);
+      setSubmitLoading(false);
     }
   }
 
@@ -363,25 +150,6 @@ export default function RegisterPage() {
           </>
         )}
         
-        {view === "otp" && (
-          <>
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <button
-                onClick={handleBack}
-                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors -ml-1 disabled:opacity-50"
-                aria-label="Go back"
-                disabled={otpLoading}
-              >
-                <ArrowLeft className="h-4 w-4 text-slate-500" />
-              </button>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Verify your email</h1>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">
-              We've sent a 6-digit code to <span className="font-medium text-slate-700">{form.email}</span>
-            </p>
-          </>
-        )}
-        
         {view === "success" && (
           <>
             <div className="flex justify-center mb-4">
@@ -401,6 +169,21 @@ export default function RegisterPage() {
         {/* Registration Form View */}
         {view === "form" && (
           <form onSubmit={handleFormSubmit} className="space-y-4" noValidate>
+            {/* Registration Error Alert */}
+            {registrationError && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+                <div className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0">
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-red-800">Registration failed</p>
+                  <p className="text-red-700 mt-0.5">{registrationError}</p>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name" error={formErrors.fullName}>
                 <input
@@ -482,118 +265,16 @@ export default function RegisterPage() {
               {submitLoading ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Preparing verification...</span>
+                  <span>Creating account...</span>
                 </>
               ) : (
                 <>
-                  <span>Continue</span>
+                  <span>Create account</span>
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </>
               )}
             </button>
           </form>
-        )}
-
-        {/* OTP Verification View */}
-        {view === "otp" && (
-          <div className="space-y-6">
-            {/* Security Badge */}
-            <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-full bg-rose-50 border border-rose-100 w-fit mx-auto">
-              <ShieldCheck className="h-4 w-4 text-rose-600" />
-              <span className="text-xs font-medium text-rose-700">Secure verification</span>
-            </div>
-
-            {/* Registration Error Alert */}
-            {registrationError && (
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
-                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
-                  <p className="font-medium text-red-800">Account creation failed</p>
-                  <p className="text-red-700 mt-0.5">{registrationError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* OTP Input */}
-            <OtpInput
-              value={otp}
-              onChange={setOtp}
-              onComplete={handleOtpComplete}
-              disabled={otpLoading || !!registrationError}
-              error={otpError || undefined}
-            />
-
-            {/* Action Buttons */}
-            <div className="flex flex-col items-center gap-3 pt-2">
-              {registrationError ? (
-                // Show retry options if registration failed
-                <>
-                  <button
-                    type="button"
-                    onClick={handleRetryRegistration}
-                    disabled={otpLoading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {otpLoading ? (
-                      <>
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        <span>Retrying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4" />
-                        <span>Retry Account Creation</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    disabled={otpLoading}
-                    className="text-sm text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-50"
-                  >
-                    ← Edit your details and try again
-                  </button>
-                </>
-              ) : (
-                // Normal flow: resend or go back
-                <>
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={countdown > 0 || otpLoading}
-                    className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-rose-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-slate-600"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${countdown > 0 ? "animate-spin" : ""}`} />
-                    {countdown > 0 
-                      ? `Resend code in ${formatTime(countdown)}` 
-                      : "Didn't receive a code? Resend"}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    disabled={otpLoading}
-                    className="text-sm text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
-                  >
-                    ← Use a different email
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Loading Overlay */}
-            {otpLoading && !registrationError && (
-              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-8 w-8 animate-spin rounded-full border-3 border-rose-500 border-t-transparent" />
-                  <span className="text-sm font-medium text-slate-700">
-                    {registrationData ? "Creating your account..." : "Verifying code..."}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
         )}
 
         {/* Success View */}
@@ -614,21 +295,10 @@ export default function RegisterPage() {
       {view !== "success" && (
         <>
           <div className="mt-5 border-t border-slate-100 pt-5 text-center text-sm text-slate-500">
-            {view === "form" ? (
-              <>
-                Already have an account?{" "}
-                <Link href="/login" className="font-semibold text-rose-500 hover:text-rose-600 transition-colors">
-                  Sign in
-                </Link>
-              </>
-            ) : (
-              <>
-                Need help?{" "}
-                <Link href="/support" className="font-semibold text-rose-500 hover:text-rose-600 transition-colors">
-                  Contact support
-                </Link>
-              </>
-            )}
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-rose-500 hover:text-rose-600 transition-colors">
+              Sign in
+            </Link>
           </div>
 
           <p className="mt-6 text-center text-xs text-slate-400">
@@ -644,16 +314,6 @@ export default function RegisterPage() {
             <Link href="/privacy" className="underline hover:text-slate-600">Privacy Policy</Link>.
           </p>
         </>
-      )}
-
-      {/* Dev Mode OTP Display */}
-      {process.env.NODE_ENV === "development" && view === "otp" && simulatedOtp && !registrationError && (
-        <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-center">
-          <p className="text-xs text-amber-800">
-            <span className="font-semibold">Dev Mode:</span> Your OTP is{" "}
-            <span className="font-mono font-bold bg-amber-200 px-1.5 py-0.5 rounded">{simulatedOtp}</span>
-          </p>
-        </div>
       )}
 
       {/* Terms Modal */}
